@@ -363,3 +363,69 @@ fn residual_backward(
     for i in range(N):
         dinp1[i] += dout[i]
         dinp2[i] += dout[i]
+
+
+fn softmax_forward(
+    probs: Pointer[Float32], logits: Pointer[Float32], B: Int, T: Int, V: Int
+) raises -> None:
+    # output: probs are (B,T,V) of the probabilities
+    # input: logits is (B,T,V) of the unnormalized log probabilities
+    # pragma omp parallel for collapse(2)
+    for b in range(B):
+        for t in range(T):
+            # probs <- softmax(logits)
+            var logits_bt = logits + b * T * V + t * V
+            var probs_bt = probs + b * T * V + t * V
+
+            var maxval: Float32 = -10000.0  # TODO something better
+            for i in range(V):
+                if logits_bt[i] > maxval:
+                    maxval = logits_bt[i]
+
+            var sum: Float32 = 0.0
+            for i in range(V):
+                probs_bt[i] = math.exp(logits_bt[i] - maxval)  # FIXME: expf
+                sum += probs_bt[i]
+            for i in range(V):
+                probs_bt[i] /= sum
+
+
+fn crossentropy_forward(
+    losses: Pointer[Float32],
+    probs: Pointer[Float32],
+    targets: Pointer[Float32],
+    B: Int,
+    T: Int,
+    V: Int,
+) raises -> None:
+    # output: losses is (B,T) of the individual losses at each position
+    # input: probs are (B,T,V) of the probabilities
+    # input: targets is (B,T) of integers giving the correct index in logits
+    for b in range(B):
+        for t in range(T):
+            # loss = -log(probs[target])
+            var probs_bt = probs + b * T * V + t * V
+            var ix = targets[b * T + t]
+            losses[b * T + t] = -math.log(probs_bt[ix])  # FIXME: logf
+
+
+fn crossentropy_softmax_backward(
+    dlogits: Pointer[Float32],
+    dlosses: Pointer[Float32],
+    probs: Pointer[Float32],
+    targets: Pointer[Int32],
+    B: Int,
+    T: Int,
+    V: Int,
+) raises -> None:
+    # backwards through both softmax and crossentropy
+    for b in range(B):
+        for t in range(T):
+            var dlogits_bt = dlogits + b * T * V + t * V
+            var probs_bt = probs + b * T * V + t * V
+            var dloss = dlosses[b * T + t]
+            var ix: Int32 = targets[b * T + t]
+            for i in range(V):
+                var p = probs_bt[i]
+                var indicator = 1.0 if (i == int(ix)) else 0.0
+                dlogits_bt[i] += (p - indicator) * dloss
