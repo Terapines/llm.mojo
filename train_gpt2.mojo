@@ -149,3 +149,45 @@ fn layernorm_backward(
                 dval -= norm_bti * dnorm_norm_mean  # term 3
                 dval *= rstd_bt  # final scale
                 dinp_bt[i] += dval
+
+
+fn matmul_backward(
+    dinp: Pointer[Float32],
+    dweight: Pointer[Float32],
+    dbias: Pointer[Float32],
+    dout: Pointer[Float32],
+    inp: Pointer[Float32],
+    weight: Pointer[Float32],
+    B: Int,
+    T: Int,
+    C: Int,
+    OC: Int,
+) raises -> None:
+    # most of the running time is spent here and in matmul_forward
+    # this backward could be done in a single "round" of loops
+    # but that doesn't afford an efficient parallelization strategy
+
+    # backward into inp first, parallelize over B,T
+    # pragma omp parallel for collapse(2)
+    for b in range(B):
+        for t in range(T):
+            var dout_bt = dout + b * T * OC + t * OC
+            var dinp_bt = dinp + b * T * C + t * C
+            for o in range(OC):
+                var wrow = weight + o * C
+                var d = dout_bt[o]
+                for i in range(C):
+                    dinp_bt[i] += wrow[i] * d
+    # backward into weight/bias, parallelize over output channels OC
+    # pragma omp parallel for
+    for o in range(OC):
+        for b in range(B):
+            for t in range(T):
+                var dout_bt = dout + b * T * OC + t * OC
+                var inp_bt = inp + b * T * C + t * C
+                var dwrow = dweight + o * C
+                var d = dout_bt[o]
+                if dbias:
+                    dbias[o] += d
+                for i in range(C):
+                    dwrow[i] += inp_bt[i] * d
