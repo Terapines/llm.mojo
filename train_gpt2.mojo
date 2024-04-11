@@ -322,8 +322,7 @@ fn attention_backward(
                         dkey_t2[i] += query_t[i] * dpreatt_bth[t2] * scale
 
 
-fn gelu_forward(out: Pointer[Float32], inp: Pointer[Float32], N: Int) 
-    raises -> None:
+fn gelu_forward(out: Pointer[Float32], inp: Pointer[Float32], N: Int) raises -> None:
     var s = math.sqrt(2.0 / M_PI)  # FIXME: sqrtf
     for i in range(N):
         var x = inp[i]
@@ -349,3 +348,18 @@ fn gelu_backward(
             1.0 + 3.0 * 0.044715 * x * x
         )
         dinp[i] += local_grad * dout[i]
+
+
+fn residual_forward(
+    out: Pointer[Float32], inp1: Pointer[Float32], inp2: Pointer[Float32], N: Int
+) raises -> None:
+    for i in range(N):
+        out[i] = inp1[i] + inp2[i]
+
+
+fn residual_backward(
+    dinp1: Pointer[Float32], dinp2: Pointer[Float32], dout: Pointer[Float32], N: Int
+) raises -> None:
+    for i in range(N):
+        dinp1[i] += dout[i]
+        dinp2[i] += dout[i]
