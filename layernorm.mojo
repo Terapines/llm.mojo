@@ -1,5 +1,4 @@
 import math
-from python import Python
 import pathlib.path as path
 
 alias eps = 1e-5
@@ -8,7 +7,7 @@ alias C = 4
 alias T = 3
 alias float_size = sizeof[DType.float32]()
 
-
+@always_inline("nodebug")
 fn layernorm_forward(
     out: Pointer[Float32],
     mean: Pointer[Float32],
@@ -17,7 +16,6 @@ fn layernorm_forward(
     weight: Pointer[Float32],
     bias: Pointer[Float32],
 ) raises -> None:
-    var _math = Python.import_module("math")
     for b in range(B):
         for t in range(T):
             var x = inp + b * T * C + t * C
@@ -31,7 +29,7 @@ fn layernorm_forward(
                 v += xsgift * xsgift
             v = v / C
             # Calculate the rstd
-            var tmp: Float32 = _math.sqrt(eps + v).to_float64()
+            var tmp: Float32 = math.sqrt(eps + v)
             var s: Float32 = 1.0 / tmp
             # seek to the output position in out[b,t,:]
             var out_bt = out + b * T * C + t * C
@@ -42,7 +40,7 @@ fn layernorm_forward(
             mean[b * T + t] = m
             rstd[b * T + t] = s
 
-
+@always_inline("nodebug")
 fn layernorm_backward(
     dinp: Pointer[Float32],
     dweight: Pointer[Float32],
@@ -53,7 +51,6 @@ fn layernorm_backward(
     mean: Pointer[Float32],
     rstd: Pointer[Float32],
 ) raises -> None:
-    var _math = Python.import_module("math")
     for b in range(B):
         for t in range(T):
             var dout_bt = dout + b * T * C + t * C
@@ -86,11 +83,11 @@ fn layernorm_backward(
                 dval *= rstd_bt  # final scale
                 dinp_bt[i] += dval
 
-
+@always_inline("nodebug")
 fn check_tensor(
     a: Pointer[Float32], b: Pointer[Float32], n: Int, lable: String
 ) raises -> None:
-    print(lable + "\n")
+    print(lable)
     for i in range(n):
         if math.abs(a[i] - b[i]) <= 1e-5:
             print("OK ")
@@ -98,7 +95,7 @@ fn check_tensor(
             print("NOT OK")
         print(a[i], b[i])
 
-
+@always_inline("nodebug")
 fn storeToMem(mem: Pointer[Float32], base: DTypePointer, size: Int):
     for i in range(size):
         var tmp = base.offset(0).bitcast[DType.float32]().load(i)
