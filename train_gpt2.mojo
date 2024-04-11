@@ -191,3 +191,129 @@ fn matmul_backward(
                     dbias[o] += d
                 for i in range(C):
                     dwrow[i] += inp_bt[i] * d
+
+fn attention_forward(
+    out: Pointer[Float32],
+    preatt: Pointer[Float32],
+    att: Pointer[Float32],
+    inp: Pointer[Float32],
+    B: Int,
+    T: Int,
+    C: Int,
+    NH: Int,
+) raises -> None:
+    # input is (B, T, 3C) Q,K,V
+    # preatt, att are (B, NH, T, T)
+    # output is (B, T, C)
+    var C3 = C * 3
+    var hs = C / NH  # head size
+    var scale = 1.0 / math.sqrt(hs)  # FIXME:
+
+    # pragma omp parallel for collapse(3)
+    for b in range(B):
+        for t in range(T):
+            for h in range(NH):
+                var query_t = inp + b * T * C3 + t * C3 + h * hs
+                var preatt_bth = preatt + b * NH * T * T + h * T * T + t * T
+                var att_bth = att + b * NH * T * T + h * T * T + t * T
+
+                # pass 1: calculate query dot key and maxval
+                var maxval: Float32 = -10000.0  # TODO something better
+                for t2 in range(t + 1):
+                    var key_t2 = inp + b * T * C3 + t2 * C3 + h * hs + C  # +C because it's key
+
+                    # (query_t) dot (key_t2)
+                    var val: Float32 = 0.0
+                    for i in range(hs):
+                        val += query_t[i] * key_t2[i]
+                    val *= scale
+                    if val > maxval:
+                        maxval = val
+                    preatt_bth[t2] = val
+
+                # pass 2: calculate the exp and keep track of sum
+                var expsum: Float32 = 0.0
+                for t2 in range(t + 1):
+                    var expv = math.exp(preatt_bth[t2] - maxval)  # FIXME: expf
+                    expsum += expv
+                    att_bth[t2] = expv
+
+                var expsum_inv = 0.0 if (expsum == 0.0) else (1.0 / expsum)
+
+                # pass 3: normalize to get the softmax
+                for t2 in range(T):
+                    if t2 <= t:
+                        att_bth[t2] *= expsum_inv
+                    else:
+                        # causal attention mask. not strictly necessary to set to zero here
+                        # only doing this explicitly for debugging and checking to PyTorch
+                        att_bth[t2] = 0.0
+                # pass 4: accumulate weighted values into the output of attention
+                var out_bth = out + b * T * C + t * C + h * hs
+                for i in range(hs):
+                    out_bth[i] = 0.0
+                for t2 in range(t + 1):
+                    var value_t2 = inp + b * T * C3 + t2 * C3 + h * hs + C * 2  # +C*2 because it's value
+                    var att_btht2 = att_bth[t2]
+                    for i in range(hs):
+                        out_bth[i] += att_btht2 * value_t2[i]
+
+
+fn attention_backward(
+    dinp: Pointer[Float32],
+    dpreatt: Pointer[Float32],
+    datt: Pointer[Float32],
+    dout: Pointer[Float32],
+    inp: Pointer[Float32],
+    att: Pointer[Float32],
+    B: Int,
+    T: Int,
+    C: Int,
+    NH: Int,
+) raises -> None:
+    # inp/dinp are (B, T, 3C) Q,K,V
+    # att/datt/dpreatt are (B, NH, T, T)
+    # dout is (B, T, C)
+    var C3 = C * 3
+    var hs = C / NH  # head size
+    var scale = 1.0 / math.sqrt(hs)  # FIXME: sqrtf
+
+    for b in range(B):
+        for t in range(T):
+            for h in range(NH):
+                var att_bth = att + b * NH * T * T + h * T * T + t * T
+                var datt_bth = datt + b * NH * T * T + h * T * T + t * T
+                var dpreatt_bth = dpreatt + b * NH * T * T + h * T * T + t * T
+                var dquery_t = dinp + b * T * C3 + t * C3 + h * hs
+                var query_t = inp + b * T * C3 + t * C3 + h * hs
+
+                # backward pass 4, through the value accumulation
+                var dout_bth = dout + b * T * C + t * C + h * hs
+                for t2 in range(t + 1):
+                    var value_t2 = inp + b * T * C3 + t2 * C3 + h * hs + C * 2  # +C*2 because it's value
+                    var dvalue_t2 = dinp + b * T * C3 + t2 * C3 + h * hs + C * 2
+                    for i in range(hs):
+                        # in the forward pass this was:
+                        # out_bth[i] += att_bth[t2] * value_t2[i];
+                        # so now we have:
+                        datt_bth[t2] += value_t2[i] * dout_bth[i]
+                        dvalue_t2[i] += att_bth[t2] * dout_bth[i]
+
+                # backward pass 2 & 3, the softmax
+                # note that softmax (like e.g. tanh) doesn't need the input (preatt) to backward
+                for t2 in range(t + 1):
+                    for t3 in range(t + 1):
+                        var indicator: Float32 = 1.0 if t2 == t3 else 0.0
+                        var local_derivative = att_bth[t2] * (indicator - att_bth[t3])
+                        dpreatt_bth[t3] += local_derivative * datt_bth[t2]
+
+                # backward pass 1, the query @ key matmul
+                for t2 in range(t + 1):
+                    var key_t2 = inp + b * T * C3 + t2 * C3 + h * hs + C  # +C because it's key
+                    var dkey_t2 = dinp + b * T * C3 + t2 * C3 + h * hs + C  # +C because it's key
+                    for i in range(hs):
+                        # in the forward pass this was:
+                        # preatt_bth[t2] += (query_t[i] * key_t2[i]) * scale;
+                        # so now we have:
+                        dquery_t[i] += key_t2[i] * dpreatt_bth[t2] * scale
+                        dkey_t2[i] += query_t[i] * dpreatt_bth[t2] * scale
