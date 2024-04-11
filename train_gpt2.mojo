@@ -13,6 +13,8 @@
 
 import math
 
+alias M_PI: Float32 = 3.14159265358979323846264338327950288
+
 # ----------------------------------------------------------------------------
 # all the individual layers' forward and backward passes
 
@@ -192,6 +194,7 @@ fn matmul_backward(
                 for i in range(C):
                     dwrow[i] += inp_bt[i] * d
 
+
 fn attention_forward(
     out: Pointer[Float32],
     preatt: Pointer[Float32],
@@ -317,3 +320,32 @@ fn attention_backward(
                         # so now we have:
                         dquery_t[i] += key_t2[i] * dpreatt_bth[t2] * scale
                         dkey_t2[i] += query_t[i] * dpreatt_bth[t2] * scale
+
+
+fn gelu_forward(out: Pointer[Float32], inp: Pointer[Float32], N: Int) 
+    raises -> None:
+    var s = math.sqrt(2.0 / M_PI)  # FIXME: sqrtf
+    for i in range(N):
+        var x = inp[i]
+        var cube = 0.044715 * x * x * x
+        out[i] = 0.5 * x * (1.0 + math.tanh(s * (x + cube)))  # FIXME:tanhf
+
+
+fn gelu_backward(
+    dinp: Pointer[Float32],
+    inp: Pointer[Float32],
+    dout: Pointer[Float32],
+    N: Pointer[Float32],
+) raises -> None:
+    var s = math.sqrt(2.0 / M_PI)  # FIXME: sqrtf
+    for i in range(N):
+        var x = inp[i]
+        var cube = 0.044715 * x * x * x
+        var tanh_arg = s * (x + cube)
+        var tanh_out = math.tanh(tanh_arg)  # FIXME: tanhf
+        var coshf_out = math.cosh(tanh_arg)  # FIXME: coshf
+        var sech_out = 1.0 / (coshf_out * coshf_out)
+        var local_grad = 0.5 * (1.0 + tanh_out) + x * 0.5 * sech_out * s * (
+            1.0 + 3.0 * 0.044715 * x * x
+        )
+        dinp[i] += local_grad * dout[i]
