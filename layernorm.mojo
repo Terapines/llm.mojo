@@ -1,5 +1,6 @@
 import math
 from python import Python
+import pathlib.path as path
 
 alias eps = 1e-5
 alias B = 2
@@ -115,7 +116,8 @@ fn main() raises -> None:
     var dx: Pointer[Float32] = Pointer[Float32].alloc(B * T * C * float_size)
     var dw: Pointer[Float32] = Pointer[Float32].alloc(C * float_size)
     var db: Pointer[Float32] = Pointer[Float32].alloc(C * float_size)
-    var fd = open("ln.bin", "rb")
+    var reference = path.Path(path.cwd().joinpath("data/ln.bin"))
+    var fd = open(reference, "rb")
     var _x = fd.read(B * T * C * float_size)
     var _w = fd.read(C * float_size)
     var _b = fd.read(C * float_size)
