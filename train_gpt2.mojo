@@ -569,29 +569,29 @@ struct ActivationTensors:
     var probs: Pointer[Float32]  # (B, T, V)
     var losses: Pointer[Float32]  # (B, T)
     fn __init__(inout self):
-        self.encoded = Pointer[Float32].get_null()
-        self.ln1 = Pointer[Float32].get_null()
-        self.ln1_mean = Pointer[Float32].get_null()
-        self.ln1_rstd = Pointer[Float32].get_null()
-        self.qkv = Pointer[Float32].get_null()
-        self.atty = Pointer[Float32].get_null()
-        self.preatt = Pointer[Float32].get_null()
-        self.att = Pointer[Float32].get_null()
-        self.attproj = Pointer[Float32].get_null()
-        self.residual2= Pointer[Float32].get_null()
-        self.ln2 = Pointer[Float32].get_null()
-        self.ln2_mean = Pointer[Float32].get_null()
-        self.ln2_rstd = Pointer[Float32].get_null()
-        self.fch = Pointer[Float32].get_null()
-        self.fch_gelu = Pointer[Float32].get_null()
-        self.fcproj= Pointer[Float32].get_null()
-        self.residual3 = Pointer[Float32].get_null()
-        self.lnf = Pointer[Float32].get_null()
-        self.lnf_mean = Pointer[Float32].get_null()
-        self.lnf_rstd = Pointer[Float32].get_null()
-        self.logits= Pointer[Float32].get_null()
-        self.probs = Pointer[Float32].get_null()
-        self.losses = Pointer[Float32].get_null()
+        self.encoded = Pointer[Float32].alloc(4)
+        self.ln1 = Pointer[Float32].alloc(4)
+        self.ln1_mean = Pointer[Float32].alloc(4)
+        self.ln1_rstd = Pointer[Float32].alloc(4)
+        self.qkv = Pointer[Float32].alloc(4)
+        self.atty = Pointer[Float32].alloc(4)
+        self.preatt = Pointer[Float32].alloc(4)
+        self.att = Pointer[Float32].alloc(4)
+        self.attproj = Pointer[Float32].alloc(4)
+        self.residual2= Pointer[Float32].alloc(4)
+        self.ln2 = Pointer[Float32].alloc(4)
+        self.ln2_mean = Pointer[Float32].alloc(4)
+        self.ln2_rstd = Pointer[Float32].alloc(4)
+        self.fch = Pointer[Float32].alloc(4)
+        self.fch_gelu = Pointer[Float32].alloc(4)
+        self.fcproj= Pointer[Float32].alloc(4)
+        self.residual3 = Pointer[Float32].alloc(4)
+        self.lnf = Pointer[Float32].alloc(4)
+        self.lnf_mean = Pointer[Float32].alloc(4)
+        self.lnf_rstd = Pointer[Float32].alloc(4)
+        self.logits= Pointer[Float32].alloc(4)
+        self.probs = Pointer[Float32].alloc(4)
+        self.losses = Pointer[Float32].alloc(4)
 
 fn malloc_and_point_activations(
     acts: Pointer[ActivationTensors], act_sizes: UInt32
@@ -687,22 +687,22 @@ struct GPT2:
         )
         self.config = GPT2Config()
         self.params = ParameterTensors()
-        self.params_memory = Pointer[Float32].get_null()
+        self.params_memory = Pointer[Float32].alloc(4)
         self.grads = ParameterTensors()
-        self.grads_memory=Pointer[Float32].get_null()
-        self.m_memory=Pointer[Float32].get_null()
-        self.v_memory=Pointer[Float32].get_null()
+        self.grads_memory=Pointer[Float32].alloc(4)
+        self.m_memory=Pointer[Float32].alloc(4)
+        self.v_memory=Pointer[Float32].alloc(4)
         self.acts= ActivationTensors()
-        self.acts_memory=Pointer[Float32].get_null()
+        self.acts_memory=Pointer[Float32].alloc(4)
         self.num_activations = 0
         self.grads_acts = ActivationTensors()
-        self.grads_acts_memory=Pointer[Float32].get_null()
+        self.grads_acts_memory=Pointer[Float32].alloc(4)
         self.batch_size = 0
         self.seq_len = 0
         self.mean_loss = 0.0
         self.num_parameters = 0
-        self.inputs = Pointer[Int32].get_null()
-        self.targets = Pointer[Int32].get_null()
+        self.inputs = Pointer[Int32].alloc(4)
+        self.targets = Pointer[Int32].alloc(4)
 
 fn gpt2_build_from_checkpoint(
     model: Pointer[GPT2], checkpoint_path: String
@@ -777,13 +777,13 @@ fn gpt2_build_from_checkpoint(
     model_file.close()
 
     # other inits
-    model[0].acts_memory = Pointer[Float32]().get_null()
-    model[0].grads_memory = Pointer[Float32]().get_null()
-    model[0].m_memory = Pointer[Float32]().get_null()
-    model[0].v_memory = Pointer[Float32]().get_null()
-    model[0].grads_acts_memory = Pointer[Float32]().get_null()
-    model[0].inputs = Pointer[Int32]().get_null()
-    model[0].targets = Pointer[Int32]().get_null()
+    model[0].acts_memory = Pointer[Float32]().alloc(4)
+    model[0].grads_memory = Pointer[Float32]().alloc(4)
+    model[0].m_memory = Pointer[Float32]().alloc(4)
+    model[0].v_memory = Pointer[Float32]().alloc(4)
+    model[0].grads_acts_memory = Pointer[Float32]().alloc(4)
+    model[0].inputs = Pointer[Int32]().alloc(4)
+    model[0].targets = Pointer[Int32]().alloc(4)
     model[0].batch_size = 0
     model[0].seq_len = 0
     model[0].mean_loss = -1.0  # -1.0f will designate no loss
@@ -1281,11 +1281,12 @@ struct DataLoader:
         self.file = "wikitext-2-raw/wiki.train.raw"
         self.file_size = 0
         self.current_position = 0
-        self.batch = Pointer[Int32].get_null()
-        self.inputs = Pointer[Int32].get_null()
-        self.targets = Pointer[Int32].get_null()
+        self.batch = Pointer[Int32].alloc(4)
+        self.inputs = Pointer[Int32].alloc(4)
+        self.targets = Pointer[Int32].alloc(4)
         self.num_batches = 0
 
+           
 # fn dataloader_init(loader: Pointer[DataLoader], filename: String, B: Int, T: Int) raises -> None:
 #     loader[0].B = B
 #     loader[0].T = T
@@ -1332,7 +1333,7 @@ fn main() raises -> None:
 
     # build the GPT-2 model from a checkpoint
     var model: GPT2 = GPT2()
-    gpt2_build_from_checkpoint(Pointer.address_of(model), "/home/triton/github/llm.mojo/gpt2_124M.bin")
+    gpt2_build_from_checkpoint(Pointer.address_of(model), "data/gpt2_124M.bin")
 
     # build the DataLoaders from tokens files. for now use tiny_shakespeare if available, else tiny_stories
     var tiny_stories_train = "data/TinyStories_train.bin"
