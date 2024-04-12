@@ -12,6 +12,7 @@
 # ===----------------------------------------------------------------------=== #
 
 import math
+import pathlib.path as path
 from memory import *
 from layernorm import *
 
@@ -857,12 +858,7 @@ fn gpt2_forward(
         if B > int(model[0].batch_size) or T > int(model[0].seq_len):
             print("Error: batch size or sequence length is inadequately large")
             print(
-                "Model: B=%d T=%d, Desired: B=%d T=%d",
-                model[0].batch_size,
-                model[0].seq_len,
-                B,
-                T,
-            )
+                "Model: B= ", model[0].batch_size, "T= ", model[0].seq_len, "Desired: B=", B, "T=",T)
             abort(1)
 
     # cache the inputs/targets
@@ -1333,13 +1329,13 @@ fn main() raises -> None:
 
     # build the GPT-2 model from a checkpoint
     var model: GPT2 = GPT2()
-    gpt2_build_from_checkpoint(Pointer.address_of(model), "data/gpt2_124M.bin")
+    gpt2_build_from_checkpoint(Pointer.address_of(model), path.Path(path.cwd().joinpath("data/gpt2_124M.bin")))
 
     # build the DataLoaders from tokens files. for now use tiny_shakespeare if available, else tiny_stories
-    var tiny_stories_train = "data/TinyStories_train.bin"
-    var tiny_stories_val = "data/TinyStories_val.bin"
-    var tiny_shakespeare_train = "data/tiny_shakespeare_train.bin"
-    var tiny_shakespeare_val = "data/tiny_shakespeare_val.bin"
+    var tiny_stories_train = path.Path(path.cwd().joinpath("data/TinyStories_train.bin"))
+    var tiny_stories_val = path.Path(path.cwd().joinpath("data/TinyStories_val.bin"))
+    var tiny_shakespeare_train = path.Path(path.cwd().joinpath("data/tiny_shakespeare_train.bin"))
+    var tiny_shakespeare_val = path.Path(path.cwd().joinpath("data/tiny_shakespeare_val.bin"))
     var train_tokens = tiny_shakespeare_train
     var val_tokens = tiny_shakespeare_val
     var B = 4
