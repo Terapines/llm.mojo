@@ -109,9 +109,15 @@ fn check_tensor(
         print(a[i], b[i])
 
 @always_inline("nodebug")
-fn storeToMem[T: AnyType](mem: Pointer[T], base: DTypePointer, size: Int):
+fn storeToMem(mem: Pointer[Float32], base: DTypePointer, size: Int):
     for i in range(size):
         var tmp = base.offset(0).bitcast[DType.float32]().load(i)
+        mem.store(i, tmp)
+
+@always_inline("nodebug")
+fn storeToMem(mem: Pointer[Int32], base: DTypePointer, size: Int):
+    for i in range(size):
+        var tmp = base.offset(0).bitcast[DType.int32]().load(i)
         mem.store(i, tmp)
 
 
@@ -139,16 +145,16 @@ fn main() raises -> None:
     var _dw = fd.read(C * float_size)
     var _db = fd.read(C * float_size)
 
-    storeToMem[Float32](x, _x._steal_ptr().bitcast[DType.uint8](), B * T * C)
-    storeToMem[Float32](w, _w._steal_ptr().bitcast[DType.uint8](), C)
-    storeToMem[Float32](b, _b._steal_ptr().bitcast[DType.uint8](), C)
-    storeToMem[Float32](out, _out._steal_ptr().bitcast[DType.uint8](), B * T * C)
-    storeToMem[Float32](mean, _mean._steal_ptr().bitcast[DType.uint8](), B * T)
-    storeToMem[Float32](rstd, _rstd._steal_ptr().bitcast[DType.uint8](), B * T)
-    storeToMem[Float32](dout, _dout._steal_ptr().bitcast[DType.uint8](), B * T * C)
-    storeToMem[Float32](dx, _dx._steal_ptr().bitcast[DType.uint8](), B * T * C)
-    storeToMem[Float32](dw, _dw._steal_ptr().bitcast[DType.uint8](), C)
-    storeToMem[Float32](db, _db._steal_ptr().bitcast[DType.uint8](), C)
+    storeToMem(x, _x._steal_ptr().bitcast[DType.uint8](), B * T * C)
+    storeToMem(w, _w._steal_ptr().bitcast[DType.uint8](), C)
+    storeToMem(b, _b._steal_ptr().bitcast[DType.uint8](), C)
+    storeToMem(out, _out._steal_ptr().bitcast[DType.uint8](), B * T * C)
+    storeToMem(mean, _mean._steal_ptr().bitcast[DType.uint8](), B * T)
+    storeToMem(rstd, _rstd._steal_ptr().bitcast[DType.uint8](), B * T)
+    storeToMem(dout, _dout._steal_ptr().bitcast[DType.uint8](), B * T * C)
+    storeToMem(dx, _dx._steal_ptr().bitcast[DType.uint8](), B * T * C)
+    storeToMem(dw, _dw._steal_ptr().bitcast[DType.uint8](), C)
+    storeToMem(db, _db._steal_ptr().bitcast[DType.uint8](), C)
     var c_out: Pointer[Float32] = Pointer[Float32].alloc(B * T * C * float_size)
     var c_mean: Pointer[Float32] = Pointer[Float32].alloc(B * T * float_size)
     var c_rstd: Pointer[Float32] = Pointer[Float32].alloc(B * T * float_size)
