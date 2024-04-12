@@ -778,13 +778,13 @@ fn gpt2_build_from_checkpoint(
     model_file.close()
 
     # other inits
-    model[0].acts_memory = Pointer[Float32]().alloc(4)
-    model[0].grads_memory = Pointer[Float32]().alloc(4)
-    model[0].m_memory = Pointer[Float32]().alloc(4)
-    model[0].v_memory = Pointer[Float32]().alloc(4)
-    model[0].grads_acts_memory = Pointer[Float32]().alloc(4)
-    model[0].inputs = Pointer[Int32]().alloc(4)
-    model[0].targets = Pointer[Int32]().alloc(4)
+    model[0].acts_memory = Pointer[Float32]().get_null()
+    model[0].grads_memory = Pointer[Float32]().get_null()
+    model[0].m_memory = Pointer[Float32]().get_null()
+    model[0].v_memory = Pointer[Float32]().get_null()
+    model[0].grads_acts_memory = Pointer[Float32]().get_null()
+    model[0].inputs = Pointer[Int32]().get_null()
+    model[0].targets = Pointer[Int32]().get_null()
     model[0].batch_size = 0
     model[0].seq_len = 0
     model[0].mean_loss = -1.0  # -1.0f will designate no loss
@@ -1260,7 +1260,8 @@ struct DataLoader:
     # hyperparameters
     var B: Int32
     var T: Int32
-    var file: StringRef
+    var file: Pointer[FileHandle]
+    var file_Path: StringLiteral
     # input handling and its state
     var file_size: Int64
     var current_position: Int64
@@ -1274,7 +1275,8 @@ struct DataLoader:
     fn __init__(inout self: DataLoader):
         self.B = 64
         self.T = 256
-        self.file = "wikitext-2-raw/wiki.train.raw"
+        self.file = Pointer[FileHandle].alloc(4)
+        self.file_Path = ""
         self.file_size = 0
         self.current_position = 0
         self.batch = Pointer[Int32].alloc(4)
@@ -1283,33 +1285,47 @@ struct DataLoader:
         self.num_batches = 0
 
            
-# fn dataloader_init(loader: Pointer[DataLoader], filename: String, B: Int, T: Int) raises -> None:
-#     loader[0].B = B
-#     loader[0].T = T
-#     loader[0].file = reference(filename)
-#     # open the input file for reading
-#     var tokens_file = open(filename, "rb")
-#     tokens_file =  Pointer.address_of(tokens_file)
-#     if not loader[0].tokens_file:
-#         print("Error opening tokens file\n")
-#         abort(1 )
-#     # determine the file size
-#     var dd = loader[0].tokens_file[0]
-#     loader[0].file_size = len(tokens_file.read())
-#     _ = tokens_file.seek(0)
-#     if (loader[0].file_size < (B * T + 1) * sizeof[Int32]()):
-#         print("Error: file size is too small for the batch size and sequence length\n")
-#         abort(1)
-#     loader[0].current_position = 0 # start at the beginning
+fn dataloader_init(loader: Pointer[DataLoader], filename: StringLiteral, B: Int, T: Int) raises -> None:
+    loader[0].B = B
+    loader[0].T = T
+    loader[0].file_Path = filename
+    var fd = open(filename, "rb")
+    loader[0].file =Pointer.address_of(fd)
+    # open the input file for reading
+    if not loader[0].file:
+        print("Error opening tokens file\n")
+        abort(1 )
+    # determine the file size
+    loader[0].file_size = len(fd.read())
+    _ = fd.seek(0)
+    if (loader[0].file_size < (B * T + 1) * sizeof[Int32]()):
+        print("Error: file size is too small for the batch size and sequence length\n")
+        abort(1)
+    loader[0].current_position = 0 # start at the beginning
 
-#     # allocate space for B*T + 1 integers to store the inputs and targets
-#     loader[0].batch = Pointer[Int32].alloc((B * T + 1) * sizeof[Int32]())
-#     loader[0].inputs = loader[0].batch
-#     loader[0].targets = loader[0].batch + 1 # targets are shifted by one
-#     loader[0].num_batches = int(loader[0].file_size / (B * T * sizeof[Int32]()))
+    # allocate space for B*T + 1 integers to store the inputs and targets
+    loader[0].batch = Pointer[Int32].alloc((B * T + 1) * sizeof[Int32]())
+    loader[0].inputs = loader[0].batch
+    loader[0].targets = loader[0].batch + 1 # targets are shifted by one
+    loader[0].num_batches = int(loader[0].file_size / (B * T * sizeof[Int32]()))
 
 fn dataloader_reset(loader: Pointer[DataLoader]) raises -> None:
     loader[0].current_position = 0
+
+fn dataloader_next_batch(loader: Pointer[DataLoader]) raises -> None:
+    var B = loader[0].B
+    var T = loader[0].T
+    # if we are at the end of the file, loop back to the beginning
+    if (int(loader[0].current_position) + (B*T+1) * sizeof[Int32]() > int(loader[0].file_size)):
+        loader[0].current_position = 0;
+    var fd = open(loader[0].file_Path, "rb")
+    var x = fd.read(int(B*T+1)*sizeof[Int32]())
+    # read the B*T+1 integers from the file into batch
+    # loader[0].file.offset(0).a, loader[0].current_position, SEEK_SET);
+    storeToMem(loader[0].batch, x._steal_ptr().bitcast[DType.uint8](), int(B*T+1))
+    #advance the current position by B*T integers
+    loader[0].current_position += int(B*T * sizeof[Int32]())
+
 
 fn dataloader_free(loader: Pointer[DataLoader]) raises -> None:
     loader[0].batch.free()
@@ -1321,30 +1337,41 @@ fn random_u32(state: DTypePointer[DType.uint64]) raises -> UInt32:
     state[0] ^= state[0] >> 27
     return int((state[0] * 0x2545F4914F6CDD1D) >> 32)
 
-def random_f32(state: DTypePointer[DType.uint64]):
-    return  (random_u32(state) >> 8) / 16777216.0
+fn random_f32(state: DTypePointer[DType.uint64]) raises -> Float32:
+    var f: Float32 = 16777216.0
+    return 0.5
+
+fn sample_mult(probabilities: Pointer[Float32], n: Int32, coin: Float32) raises -> Int32:
+    # sample index from probabilities (they must sum to 1!)
+    # coin is a random number in [0, 1), usually from random_f32()
+    var cdf: Float32 = 0.0
+    for  i in range(n):
+        cdf += probabilities[i]
+        if (coin < cdf):
+            return i
+    return n - 1 # in case of rounding errors
 
 
 fn main() raises -> None:
 
     # build the GPT-2 model from a checkpoint
     var model: GPT2 = GPT2()
-    gpt2_build_from_checkpoint(Pointer.address_of(model), path.Path(path.cwd().joinpath("data/gpt2_124M.bin")))
+    gpt2_build_from_checkpoint(Pointer.address_of(model),"data/gpt2_124M.bin")
 
     # build the DataLoaders from tokens files. for now use tiny_shakespeare if available, else tiny_stories
     var tiny_stories_train = path.Path(path.cwd().joinpath("data/TinyStories_train.bin"))
     var tiny_stories_val = path.Path(path.cwd().joinpath("data/TinyStories_val.bin"))
     var tiny_shakespeare_train = path.Path(path.cwd().joinpath("data/tiny_shakespeare_train.bin"))
     var tiny_shakespeare_val = path.Path(path.cwd().joinpath("data/tiny_shakespeare_val.bin"))
-    var train_tokens = tiny_shakespeare_train
+    var train_tokens =  tiny_shakespeare_train
     var val_tokens = tiny_shakespeare_val
     var B = 4
     var T = 64
     var train_loader: DataLoader = DataLoader()
-    # dataloader_init(Pointer.address_of(train_loader), train_tokens, B, T)
+    dataloader_init(Pointer.address_of(train_loader), "/Users/zhoujing/codes/llm.c/data/TinyStories_train.bin", B, T)
     print("train dataset num_batches: ", train_loader.num_batches)
     var val_loader : DataLoader = DataLoader()
-    # dataloader_init(Pointer.address_of(val_loader), val_tokens, B, T)
+    dataloader_init(Pointer.address_of(val_loader), "/Users/zhoujing/codes/llm.c/data/TinyStories_val.bin", B, T)
     print("val dataset num_batches: ", val_loader.num_batches)
     var val_num_batches = 10
 
@@ -1362,11 +1389,11 @@ fn main() raises -> None:
             var val_loss: Float32 = 0.0
             dataloader_reset(Pointer.address_of(val_loader))
             for i in range(val_num_batches):
-                # dataloader_next_batch(Pointer.address_of(val_loader))
+                dataloader_next_batch(Pointer.address_of(val_loader))
                 gpt2_forward(Pointer.address_of(model), val_loader.inputs, val_loader.targets, B, T)
                 val_loss += model.mean_loss
             val_loss /= val_num_batches
-            print("val loss %f\n", val_loss)
+            print("val loss ", val_loss)
 
         # once in a while do model inference to print generated text
         if (step > 0 and step % 20 == 0):
@@ -1379,8 +1406,8 @@ fn main() raises -> None:
                 gpt2_forward(Pointer.address_of(model), gen_tokens, Pointer[Int32].get_null(), 1, t)
                 var probs = model.acts.probs + (t-1) * model.config.vocab_size
                 var coin = random_f32(DTypePointer.address_of(rng_state))
-                # var next_token = sample_mult(probs, model.config.vocab_size, coin)
-                # gen_tokens[t] = next_token
+                var next_token = sample_mult(probs, model.config.vocab_size, coin)
+                gen_tokens[t] = next_token
             print("generated: ")
             for  t in range(gen_max_length):
                 print(gen_tokens[t])
@@ -1388,7 +1415,7 @@ fn main() raises -> None:
 
         # do a training step
         # clock_gettime(CLOCK_MONOTONIC, &start)
-        # dataloader_next_batch(Pointer.address_of(train_loader))
+        dataloader_next_batch(Pointer.address_of(train_loader))
         gpt2_forward(Pointer.address_of(model), train_loader.inputs, train_loader.targets, B, T)
         gpt2_zero_grad(Pointer.address_of(model))
         gpt2_backward(Pointer.address_of(model))
