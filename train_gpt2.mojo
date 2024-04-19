@@ -25,9 +25,10 @@ alias SEEK_END = 2
 # ----------------------------------------------------------------------------
 # Helper function
 
-fn getFilePath[T: Stringable](file: T) raises -> String:
 
+fn getFilePath[T: Stringable](file: T) raises -> String:
     return Path(path.cwd().joinpath(file)).__str__()
+
 
 # ----------------------------------------------------------------------------
 # all the individual layers' forward and backward passes
@@ -497,6 +498,7 @@ struct ParameterTensors:
     var fcprojb: Pointer[Float32]  # (L, C)
     var lnfw: Pointer[Float32]  # (C)
     var lnfb: Pointer[Float32]  # (C)
+
     fn __init__(inout self):
         self.wte = Pointer[Float32].alloc(4)
         self.wpe = Pointer[Float32].alloc(4)
@@ -511,9 +513,10 @@ struct ParameterTensors:
         self.fcw = Pointer[Float32].alloc(4)
         self.fcb = Pointer[Float32].alloc(4)
         self.fcprojw = Pointer[Float32].alloc(4)
-        self.fcprojb= Pointer[Float32].alloc(4)
+        self.fcprojb = Pointer[Float32].alloc(4)
         self.lnfw = Pointer[Float32].alloc(4)
-        self.lnfb= Pointer[Float32].alloc(4)
+        self.lnfb = Pointer[Float32].alloc(4)
+
 
 # allocate memory for the parameters and point the individual tensors to the right places
 fn malloc_and_point_parameters(
@@ -576,6 +579,7 @@ struct ActivationTensors:
     var logits: Pointer[Float32]  # (B, T, V)
     var probs: Pointer[Float32]  # (B, T, V)
     var losses: Pointer[Float32]  # (B, T)
+
     fn __init__(inout self):
         self.encoded = Pointer[Float32].alloc(4)
         self.ln1 = Pointer[Float32].alloc(4)
@@ -586,20 +590,21 @@ struct ActivationTensors:
         self.preatt = Pointer[Float32].alloc(4)
         self.att = Pointer[Float32].alloc(4)
         self.attproj = Pointer[Float32].alloc(4)
-        self.residual2= Pointer[Float32].alloc(4)
+        self.residual2 = Pointer[Float32].alloc(4)
         self.ln2 = Pointer[Float32].alloc(4)
         self.ln2_mean = Pointer[Float32].alloc(4)
         self.ln2_rstd = Pointer[Float32].alloc(4)
         self.fch = Pointer[Float32].alloc(4)
         self.fch_gelu = Pointer[Float32].alloc(4)
-        self.fcproj= Pointer[Float32].alloc(4)
+        self.fcproj = Pointer[Float32].alloc(4)
         self.residual3 = Pointer[Float32].alloc(4)
         self.lnf = Pointer[Float32].alloc(4)
         self.lnf_mean = Pointer[Float32].alloc(4)
         self.lnf_rstd = Pointer[Float32].alloc(4)
-        self.logits= Pointer[Float32].alloc(4)
+        self.logits = Pointer[Float32].alloc(4)
         self.probs = Pointer[Float32].alloc(4)
         self.losses = Pointer[Float32].alloc(4)
+
 
 fn malloc_and_point_activations(
     acts: Pointer[ActivationTensors], act_sizes: UInt32
@@ -631,7 +636,7 @@ fn malloc_and_point_activations(
         Pointer.address_of(acts[0].lnf_rstd),
         Pointer.address_of(acts[0].logits),
         Pointer.address_of(acts[0].probs),
-        Pointer.address_of(acts[0].losses)
+        Pointer.address_of(acts[0].losses),
     )
     var acts_memory_iterator = acts_memory
     for i in range(NUM_ACTIVATION_TENSORS):
@@ -655,6 +660,7 @@ struct GPT2Config:
         self.num_layers = 12
         self.num_heads = 12
         self.channels = 768
+
 
 @value
 @register_passable
@@ -697,20 +703,21 @@ struct GPT2:
         self.params = ParameterTensors()
         self.params_memory = Pointer[Float32].alloc(4)
         self.grads = ParameterTensors()
-        self.grads_memory=Pointer[Float32].alloc(4)
-        self.m_memory=Pointer[Float32].alloc(4)
-        self.v_memory=Pointer[Float32].alloc(4)
-        self.acts= ActivationTensors()
-        self.acts_memory=Pointer[Float32].alloc(4)
+        self.grads_memory = Pointer[Float32].alloc(4)
+        self.m_memory = Pointer[Float32].alloc(4)
+        self.v_memory = Pointer[Float32].alloc(4)
+        self.acts = ActivationTensors()
+        self.acts_memory = Pointer[Float32].alloc(4)
         self.num_activations = 0
         self.grads_acts = ActivationTensors()
-        self.grads_acts_memory=Pointer[Float32].alloc(4)
+        self.grads_acts_memory = Pointer[Float32].alloc(4)
         self.batch_size = 0
         self.seq_len = 0
         self.mean_loss = 0.0
         self.num_parameters = 0
         self.inputs = Pointer[Int32].alloc(4)
         self.targets = Pointer[Int32].alloc(4)
+
 
 fn gpt2_build_from_checkpoint(
     model: Pointer[GPT2], checkpoint_path: String
@@ -777,6 +784,7 @@ fn gpt2_build_from_checkpoint(
     model[0].params_memory = malloc_and_point_parameters(
         Pointer.address_of(model[0].params), model[0].param_sizes
     )
+    print(21313213)
     var _y = model_file.read(num_parameters * sizeof[Float32]())
     storeToMem(
         model[0].params_memory, _y._steal_ptr().bitcast[DType.uint8](), num_parameters
@@ -864,7 +872,15 @@ fn gpt2_forward(
         if B > int(model[0].batch_size) or T > int(model[0].seq_len):
             print("Error: batch size or sequence length is inadequately large")
             print(
-                "Model: B= ", model[0].batch_size, "T= ", model[0].seq_len, "Desired: B=", B, "T=",T)
+                "Model: B= ",
+                model[0].batch_size,
+                "T= ",
+                model[0].seq_len,
+                "Desired: B=",
+                B,
+                "T=",
+                T,
+            )
             abort(1)
 
     # cache the inputs/targets
@@ -1260,6 +1276,7 @@ fn gpt2_free(model: Pointer[GPT2]) raises -> None:
     model[0].inputs.free()
     model[0].targets.free()
 
+
 @value
 @register_passable
 struct DataLoader:
@@ -1291,51 +1308,58 @@ struct DataLoader:
         self.num_batches = 0
 
 
-fn dataloader_init(loader: Pointer[DataLoader], filename: StringLiteral, B: Int, T: Int) raises -> None:
+fn dataloader_init(
+    loader: Pointer[DataLoader], filename: StringLiteral, B: Int, T: Int
+) raises -> None:
     loader[0].B = B
     loader[0].T = T
     loader[0].file_Path = filename
     var _file = getFilePath(filename)
     var fd = open(_file, "rb")
-    loader[0].file =Pointer.address_of(fd)
+    loader[0].file = Pointer.address_of(fd)
     # open the input file for reading
     if not loader[0].file:
         print("Error opening tokens file\n")
-        abort(1 )
+        abort(1)
     # determine the file size
     loader[0].file_size = len(fd.read())
     _ = fd.seek(0)
-    if (loader[0].file_size < (B * T + 1) * sizeof[Int32]()):
+    if loader[0].file_size < (B * T + 1) * sizeof[Int32]():
         print("Error: file size is too small for the batch size and sequence length\n")
         abort(1)
-    loader[0].current_position = 0 # start at the beginning
+    loader[0].current_position = 0  # start at the beginning
 
     # allocate space for B*T + 1 integers to store the inputs and targets
     loader[0].batch = Pointer[Int32].alloc((B * T + 1) * sizeof[Int32]())
     loader[0].inputs = loader[0].batch
-    loader[0].targets = loader[0].batch + 1 # targets are shifted by one
+    loader[0].targets = loader[0].batch + 1  # targets are shifted by one
     loader[0].num_batches = int(loader[0].file_size / (B * T * sizeof[Int32]()))
+
 
 fn dataloader_reset(loader: Pointer[DataLoader]) raises -> None:
     loader[0].current_position = 0
+
 
 fn dataloader_next_batch(loader: Pointer[DataLoader]) raises -> None:
     var B = loader[0].B
     var T = loader[0].T
     # if we are at the end of the file, loop back to the beginning
-    if (int(loader[0].current_position) + (B*T+1) * sizeof[Int32]() > int(loader[0].file_size)):
-        loader[0].current_position = 0;
+    if int(loader[0].current_position) + (B * T + 1) * sizeof[Int32]() > int(
+        loader[0].file_size
+    ):
+        loader[0].current_position = 0
     var fd = open(loader[0].file_Path, "rb")
-    var x = fd.read(int(B*T+1)*sizeof[Int32]())
+    var x = fd.read(int(B * T + 1) * sizeof[Int32]())
     # read the B*T+1 integers from the file into batch
     # loader[0].file.offset(0).a, loader[0].current_position, SEEK_SET);
-    storeToMem(loader[0].batch, x._steal_ptr().bitcast[DType.uint8](), int(B*T+1))
-    #advance the current position by B*T integers
-    loader[0].current_position += int(B*T * sizeof[Int32]())
+    storeToMem(loader[0].batch, x._steal_ptr().bitcast[DType.uint8](), int(B * T + 1))
+    # advance the current position by B*T integers
+    loader[0].current_position += int(B * T * sizeof[Int32]())
 
 
 fn dataloader_free(loader: Pointer[DataLoader]) raises -> None:
     loader[0].batch.free()
+
 
 fn random_u32(state: DTypePointer[DType.uint64]) raises -> UInt32:
     # xorshift rng: https://en.wikipedia.org/wiki/Xorshift#xorshift.2A
@@ -1344,39 +1368,47 @@ fn random_u32(state: DTypePointer[DType.uint64]) raises -> UInt32:
     state[0] ^= state[0] >> 27
     return int((state[0] * 0x2545F4914F6CDD1D) >> 32)
 
+
 fn random_f32(state: DTypePointer[DType.uint64]) raises -> Float32:
     var f: Float32 = 16777216.0
     return 0.5
 
-fn sample_mult(probabilities: Pointer[Float32], n: Int32, coin: Float32) raises -> Int32:
+
+fn sample_mult(
+    probabilities: Pointer[Float32], n: Int32, coin: Float32
+) raises -> Int32:
     # sample index from probabilities (they must sum to 1!)
     # coin is a random number in [0, 1), usually from random_f32()
     var cdf: Float32 = 0.0
-    for  i in range(n):
+    for i in range(n):
         cdf += probabilities[i]
-        if (coin < cdf):
+        if coin < cdf:
             return i
-    return n - 1 # in case of rounding errors
+    return n - 1  # in case of rounding errors
+
 
 fn main() raises -> None:
-
     # build the GPT-2 model from a checkpoint
     var model: GPT2 = GPT2()
-    gpt2_build_from_checkpoint(Pointer.address_of(model),getFilePath("data/gpt2_124M.bin"))
+    gpt2_build_from_checkpoint(
+        Pointer.address_of(model), getFilePath("data/gpt2_124M.bin")
+    )
 
     # build the DataLoaders from tokens files. for now use tiny_shakespeare if available, else tiny_stories
     var tiny_stories_train = getFilePath("data/TinyStories_train.bin")
     var tiny_stories_val = getFilePath("data/TinyStories_val.bin")
     var tiny_shakespeare_train = getFilePath("data/tiny_shakespeare_train.bin")
     var tiny_shakespeare_val = getFilePath("data/tiny_shakespeare_val.bin")
-    var train_tokens =  tiny_shakespeare_train
+    var train_tokens = tiny_shakespeare_train
     var val_tokens = tiny_shakespeare_val
     var B = 4
     var T = 64
     var train_loader: DataLoader = DataLoader()
-    dataloader_init(Pointer.address_of(train_loader), "data/TinyStories_train.bin", B, T)
+    dataloader_init(
+        Pointer.address_of(train_loader), "data/TinyStories_train.bin", B, T
+    )
     print("train dataset num_batches: ", train_loader.num_batches)
-    var val_loader : DataLoader = DataLoader()
+    var val_loader: DataLoader = DataLoader()
     dataloader_init(Pointer.address_of(val_loader), "data/TinyStories_val.bin", B, T)
     print("val dataset num_batches: ", val_loader.num_batches)
     var val_num_batches = 10
@@ -1384,48 +1416,63 @@ fn main() raises -> None:
     # some memory for generating samples from the model
     var rng_state: UInt64 = 1337
     var gen_max_length = 64
-    var gen_tokens: Pointer[Int32] = Pointer[Int32].alloc(gen_max_length)
+    var gen_tokens: Pointer[Int32] = Pointer[Int32].alloc(
+        gen_max_length * sizeof[Int32]()
+    )
 
     # train
     # struct timespec start, end #FIXME:
     for step in range(41):
-
         # once in a while estimate the validation loss
-        if (step % 10 == 0):
+        if step % 10 == 0:
             var val_loss: Float32 = 0.0
             dataloader_reset(Pointer.address_of(val_loader))
             for i in range(val_num_batches):
                 dataloader_next_batch(Pointer.address_of(val_loader))
-                gpt2_forward(Pointer.address_of(model), val_loader.inputs, val_loader.targets, B, T)
+                gpt2_forward(
+                    Pointer.address_of(model),
+                    val_loader.inputs,
+                    val_loader.targets,
+                    B,
+                    T,
+                )
                 val_loss += model.mean_loss
             val_loss /= val_num_batches
             print("val loss ", val_loss)
 
         # once in a while do model inference to print generated text
-        if (step > 0 and step % 20 == 0):
-            gen_tokens[0] = GPT2_EOT # the GPT-2 EOT token kicks off the generation
-            for t in range(1,gen_max_length):
+        if step > 0 and step % 20 == 0:
+            gen_tokens[0] = GPT2_EOT  # the GPT-2 EOT token kicks off the generation
+            for t in range(1, gen_max_length):
                 # note that inference is wasteful here because
                 # for each t, we re-compute all activations between 0 and t
                 # leaving this alone because you want separate code for inference anyway
                 # the inference here is just for sanity checking purposes
-                gpt2_forward(Pointer.address_of(model), gen_tokens, Pointer[Int32].get_null(), 1, t)
-                var probs = model.acts.probs + (t-1) * model.config.vocab_size
+                gpt2_forward(
+                    Pointer.address_of(model),
+                    gen_tokens,
+                    Pointer[Int32].get_null(),
+                    1,
+                    t,
+                )
+                var probs = model.acts.probs + (t - 1) * model.config.vocab_size
                 var coin = random_f32(DTypePointer.address_of(rng_state))
                 var next_token = sample_mult(probs, model.config.vocab_size, coin)
                 gen_tokens[t] = next_token
             print("generated: ")
-            for  t in range(gen_max_length):
+            for t in range(gen_max_length):
                 print(gen_tokens[t])
             print("")
 
         # do a training step
         # clock_gettime(CLOCK_MONOTONIC, &start)
         dataloader_next_batch(Pointer.address_of(train_loader))
-        gpt2_forward(Pointer.address_of(model), train_loader.inputs, train_loader.targets, B, T)
+        gpt2_forward(
+            Pointer.address_of(model), train_loader.inputs, train_loader.targets, B, T
+        )
         gpt2_zero_grad(Pointer.address_of(model))
         gpt2_backward(Pointer.address_of(model))
-        gpt2_update(Pointer.address_of(model), 1e-4, 0.9, 0.999, 1e-8, 0.0, step+1)
+        gpt2_update(Pointer.address_of(model), 1e-4, 0.9, 0.999, 1e-8, 0.0, step + 1)
         # clock_gettime(CLOCK_MONOTONIC, &end)
         # var time_elapsed_s = (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9
         # printf("step %d: train loss %f (took %f ms)\n", step, model.mean_loss, time_elapsed_s * 1000)
@@ -1434,4 +1481,6 @@ fn main() raises -> None:
     dataloader_free(Pointer.address_of(train_loader))
     dataloader_free(Pointer.address_of(val_loader))
     gpt2_free(Pointer.address_of(model))
-#endif
+
+
+# endif
